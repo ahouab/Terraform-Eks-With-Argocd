@@ -33,3 +33,31 @@ variable "public_subnets" {
   default     = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
 
 }
+variable "external_dns_iam_role" {
+  type        = string
+  description = "IAM Role Name associated with external-dns service."
+}
+variable "external_dns_chart_name" {
+  type        = string
+  description = "Chart Name associated with external-dns service."
+}
+
+variable "external_dns_chart_repo" {
+  type        = string
+  description = "Chart Repo associated with external-dns service."
+}
+
+variable "external_dns_chart_version" {
+  type        = string
+  description = "Chart Repo associated with external-dns service."
+}
+
+variable "external_dns_values" {
+  type        = map(string)
+  description = "Values map required by external-dns service."
+}
+
+variable "dns_hosted_zone" {
+  type        = string
+  description = "DNS Zone name to be used from EKS Ingress."
+}
