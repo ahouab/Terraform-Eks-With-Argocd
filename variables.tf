@@ -82,3 +82,12 @@ variable "alb_controller_chart_version" {
   type        = string
   description = "AWS Load Balancer Controller Helm chart version."
 }
+
+variable "admin_users" {
+  type        = list(string)
+  description = "List of Kubernetes admins."
+}
+variable "developer_users" {
+  type        = list(string)
+  description = "List of Kubernetes developers."
+}
