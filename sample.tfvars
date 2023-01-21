@@ -36,3 +36,8 @@ external_dns_values = {
 }
 
 dns_hosted_zone              = "calvineotieno.com"
+load_balancer_name           = "aws-load-balancer-controller"
+alb_controller_iam_role      = "load-balancer-controller"
+alb_controller_chart_name    = "aws-load-balancer-controller"
+alb_controller_chart_repo    = "https://aws.github.io/eks-charts"
+alb_controller_chart_version = "1.4.1"

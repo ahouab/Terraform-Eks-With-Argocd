@@ -61,3 +61,24 @@ variable "dns_hosted_zone" {
   type        = string
   description = "DNS Zone name to be used from EKS Ingress."
 }
+
+variable "load_balancer_name" {
+  type        = string
+  description = "Load-balancer service name."
+}
+variable "alb_controller_iam_role" {
+  type        = string
+  description = "IAM Role Name associated with load-balancer service."
+}
+variable "alb_controller_chart_name" {
+  type        = string
+  description = "AWS Load Balancer Controller Helm chart name."
+}
+variable "alb_controller_chart_repo" {
+  type        = string
+  description = "AWS Load Balancer Controller Helm repository name."
+}
+variable "alb_controller_chart_version" {
+  type        = string
+  description = "AWS Load Balancer Controller Helm chart version."
+}
