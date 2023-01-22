@@ -2,7 +2,7 @@ module "eks" {
   source                          = "terraform-aws-modules/eks/aws"
   version                         = "19.5.1"
   cluster_name                    = var.cluster_name
-  cluster_version                 = "1.24"
+  cluster_version                = "1.23"
   cluster_endpoint_private_access = true
   cluster_endpoint_public_access  = true
   eks_managed_node_groups         = var.eks_managed_node_groups
@@ -10,23 +10,23 @@ module "eks" {
   vpc_id                          = module.vpc.vpc_id
 
 node_security_group_additional_rules = {
-    # If you omit this, you will get Internal error occurred: failed calling webhook, the server could not find the requested resource
-    # https://github.com/kubernetes-sigs/aws-load-balancer-controller/issues/2039#issuecomment-1099032289
-    ingress_allow_access_from_control_plane = {
-      type                          = "ingress"
-      protocol                      = "tcp"
-      from_port                     = 9443
-      to_port                       = 9443
-      source_cluster_security_group = true
-      description = "Allow access from control plane to webhook port of AWS load balancer controller"
-    }
+    # # If you omit this, you will get Internal error occurred: failed calling webhook, the server could not find the requested resource
+    # # https://github.com/kubernetes-sigs/aws-load-balancer-controller/issues/2039#issuecomment-1099032289
+    # ingress_allow_access_from_control_plane = {
+    #   type                          = "ingress"
+    #   protocol                      = "tcp"
+    #   from_port                     = 9443
+    #   to_port                       = 9443
+    #   source_cluster_security_group = true
+    #   description = "Allow access from control plane to webhook port of AWS load balancer controller"
+    # }
     # allow connections from ALB security group
     ingress_allow_access_from_alb_sg = {
       type                     = "ingress"
       protocol                 = "-1"
       from_port                = 0
       to_port                  = 0
-    #   source_security_group_id = aws_security_group.alb.id
+      source_security_group_id = aws_security_group.alb.id
     }
     # allow connections from EKS to the internet
     egress_all = {
@@ -87,21 +87,13 @@ module "eks_external_dns_iam" {
 provider "kubernetes" {
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-  exec {
-      api_version = "client.authentication.k8s.io/v1"
-      args        = ["eks", "get-token", "--cluster-name", "${var.cluster_name}"]
-      command     = "aws"
-    }
+  token                  = data.aws_eks_cluster_auth.cluster.token
 }
 
 provider "helm" {
   kubernetes {
     host                   = module.eks.cluster_endpoint
     cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-    exec {
-      api_version = "client.authentication.k8s.io/v1"
-      args        = ["eks", "get-token", "--cluster-name", "${var.cluster_name}"]
-      command     = "aws"
-    }
+    token                  = data.aws_eks_cluster_auth.cluster.token
   }
 }
