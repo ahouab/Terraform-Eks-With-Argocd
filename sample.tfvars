@@ -2,6 +2,9 @@ cluster_name            = "eks-with-argocd-eks-cluster"
 name_prefix             = "eks-with-argocd-development"
 main_network_block      = "10.0.0.0/16"
 
+subnet_prefix_extension = 4
+zone_offset             = 8
+
 eks_managed_node_groups = {
   "devops-eks-ondemand" = {
     ami_type     = "AL2_x86_64"
