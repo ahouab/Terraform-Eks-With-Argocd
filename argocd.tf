@@ -5,13 +5,14 @@ resource "kubernetes_namespace" "argocd" {
 }
 resource "helm_release" "argocd" {
     depends_on = [
-      kubernetes_namespace.argocd
+      kubernetes_namespace.argocd,
     ]
 
     name = "argocd-${var.argocd_name}"
     repository = var.helm_repo_url
     chart = "argo-cd"
     namespace = var.argocd_namespace
+    create_namespace = false
     version = var.argocd_helm_chart_version == "" ? null : var.argocd_helm_chart_version
 
     values = [
@@ -46,11 +47,14 @@ data "kubernetes_service" "argo_nodeport" {
 }
 
 
+// You have have to use path_type "Prefix". If you dont then it
+// will lead to the UI not loading correctly and only displaying a white page
+// https://github.com/argoproj/argo-cd/issues/9898
 resource "kubernetes_ingress_v1" "argocd-ingress" {
   depends_on = [
     helm_release.argocd
   ]
-  wait_for_load_balancer = true
+#   wait_for_load_balancer = true
   metadata {
     name = "argocd-${var.argocd_name}"
     namespace = var.argocd_namespace
@@ -76,7 +80,7 @@ resource "kubernetes_ingress_v1" "argocd-ingress" {
         http {
          path {
            path = "/"
-           path_type = "Prefix"
+           path_type = "Prefix" 
            backend {
              service {
                name = "argocd-${var.argocd_name}-server"

@@ -8,18 +8,17 @@ module "eks" {
   eks_managed_node_groups         = var.eks_managed_node_groups
   subnet_ids                      = module.vpc.private_subnets
   vpc_id                          = module.vpc.vpc_id
-
 node_security_group_additional_rules = {
     # # If you omit this, you will get Internal error occurred: failed calling webhook, the server could not find the requested resource
-    # # https://github.com/kubernetes-sigs/aws-load-balancer-controller/issues/2039#issuecomment-1099032289
-    # ingress_allow_access_from_control_plane = {
-    #   type                          = "ingress"
-    #   protocol                      = "tcp"
-    #   from_port                     = 9443
-    #   to_port                       = 9443
-    #   source_cluster_security_group = true
-    #   description = "Allow access from control plane to webhook port of AWS load balancer controller"
-    # }
+    # # https://github.com/kubernetes-sigs/aws-load-balancer-controller/issues/2039#issuecomment-1099032289  node_security_group_additional_rules = {
+    ingress_cluster_all = {
+      description                   = "Cluster to node all ports/protocols"
+      protocol                      = "-1"
+      from_port                     = 0
+      to_port                       = 0
+      type                          = "ingress"
+      source_cluster_security_group = true
+    }
     # allow connections from ALB security group
     ingress_allow_access_from_alb_sg = {
       type                     = "ingress"
