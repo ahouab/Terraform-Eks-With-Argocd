@@ -19,12 +19,12 @@ resource "helm_release" "argocd" {
         templatefile(
             "./templates/values.yaml.tpl",
             {
+               "argocd_ingress_enabled" = var.argocd_ingress_enabled
+               "argocd_ingress_class" = "alb"
                 "argocd_server_host"          = var.argocd_server_host
-                "argocd_ingress_enabled"                 = var.argocd_ingress_enabled
-                "argocd_ingress_tls_acme_enabled"        = var.argocd_ingress_tls_acme_enabled
-                "argocd_ingress_ssl_passthrough_enabled" = var.argocd_ingress_ssl_passthrough_enabled
-                "argocd_ingress_class"                   = var.argocd_ingress_class
-                "argocd_ingress_tls_secret_name"         = var.argocd_ingress_tls_secret_name
+                "argocd_load_balancer_name" = "argocd-${var.argocd_name}-alb-ingress"
+                "argocd_ingress_tls_acme_enabled" = true
+                "argocd_acm_arn" = aws_acm_certificate_validation.eks_domain_cert_validation.certificate_arn
             }
         )
     ]
@@ -43,54 +43,5 @@ data "kubernetes_service" "argo_nodeport" {
   metadata {
     name = "argocd-${var.argocd_name}-server"
     namespace = var.argocd_namespace
-  }
-}
-
-
-// You have have to use path_type "Prefix". If you dont then it
-// will lead to the UI not loading correctly and only displaying a white page
-// https://github.com/argoproj/argo-cd/issues/9898
-resource "kubernetes_ingress_v1" "argocd-ingress" {
-  depends_on = [
-    helm_release.argocd
-  ]
-#   wait_for_load_balancer = true
-  metadata {
-    name = "argocd-${var.argocd_name}"
-    namespace = var.argocd_namespace
-
-    annotations = {
-      "kubernetes.io/ingress.class"                    = "alb"
-      "alb.ingress.kubernetes.io/load-balancer-name" = var.load_balancer_name
-      "alb.ingress.kubernetes.io/scheme"               = "internet-facing"
-      "alb.ingress.kubernetes.io/backend-protocol" = "HTTP"
-      "alb.ingress.kubernetes.io/healthcheck-path" = "/"
-      "alb.ingress.kubernetes.io/certificate-arn"      = aws_acm_certificate_validation.eks_domain_cert_validation.certificate_arn // Attach ACM arn
-      "alb.ingress.kubernetes.io/listen-ports"         = <<JSON
-      [{"HTTP": 80}, {"HTTPS":443}]
-      JSON
-      "alb.ingress.kubernetes.io/actions.ssl-redirect" = <<JSON
-      {"Type": "redirect", "RedirectConfig": { "Protocol": "HTTPS", "Port": "443", "StatusCode": "HTTP_301"}}
-      JSON
-    }
-  }
-       spec {
-      rule {
-        host = var.argocd_server_host
-        http {
-         path {
-           path = "/"
-           path_type = "Prefix" 
-           backend {
-             service {
-               name = "argocd-${var.argocd_name}-server"
-               port {
-                 number = 443
-               }
-             }
-           }
-        }
-      }
-    }
   }
 }
