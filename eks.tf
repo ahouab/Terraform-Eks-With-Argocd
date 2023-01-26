@@ -9,8 +9,6 @@ module "eks" {
   subnet_ids                      = module.vpc.private_subnets
   vpc_id                          = module.vpc.vpc_id
 node_security_group_additional_rules = {
-    # # If you omit this, you will get Internal error occurred: failed calling webhook, the server could not find the requested resource
-    # # https://github.com/kubernetes-sigs/aws-load-balancer-controller/issues/2039#issuecomment-1099032289  node_security_group_additional_rules = {
     ingress_cluster_all = {
       description                   = "Cluster to node all ports/protocols"
       protocol                      = "-1"

@@ -73,6 +73,9 @@ resource "helm_release" "ingress_gateway" {
 
 # Create security group to be used later by the ingress ALB
 resource "aws_security_group" "alb" {
+    depends_on = [
+      module.vpc.public_subnets
+    ]
   name   = "${var.name_prefix}-alb"
   vpc_id = module.vpc.vpc_id
 

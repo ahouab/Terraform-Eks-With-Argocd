@@ -43,7 +43,7 @@ load_balancer_name           = "aws-load-balancer-controller"
 alb_controller_iam_role      = "load-balancer-controller"
 alb_controller_chart_name    = "aws-load-balancer-controller"
 alb_controller_chart_repo    = "https://aws.github.io/eks-charts"
-alb_controller_chart_version = "1.4.1"
+alb_controller_chart_version = "1.4.7"
 
 admin_users     = ["calvine.devops"]
 developer_users = ["elvis-kariuki", "peter-donald"]

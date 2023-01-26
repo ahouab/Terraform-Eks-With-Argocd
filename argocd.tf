@@ -6,8 +6,8 @@ resource "kubernetes_namespace" "argocd" {
 resource "helm_release" "argocd" {
     depends_on = [
       kubernetes_namespace.argocd,
+      aws_security_group.alb
     ]
-
     name = "argocd-${var.argocd_name}"
     repository = var.helm_repo_url
     chart = "argo-cd"
