@@ -1,3 +1,8 @@
+variable "aws_region" {
+  type = string
+  description = "AWS region to create the infrastructure"
+  default = "eu-west-1"
+}
 variable "eks_managed_node_groups" {
   type        = map(any)
   description = "Map of EKS managed node group definitions to create"
