@@ -1,0 +1,21 @@
+version: 2.1
+
+orbs:
+  aws-cli: circleci/aws-cli@2.0
+  jq: circleci/jq@2.2.0
+
+jobs:
+  aws-cli-cred-setup:
+    executor: aws-cli/default
+    steps:
+      - aws-cli/setup:
+          aws-access-key-id: AWS_ACCESS_KEY
+          aws-secret-access-key: AWS_ACCESS_SECRET
+          aws-region: AWS_REGION_NAME
+      - run: >-
+          aws sts get-caller-identity | jq
+workflows:
+  aws-cli:
+    jobs:
+      - aws-cli-cred-setup:
+          context: aws
