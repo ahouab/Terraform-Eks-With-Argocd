@@ -37,7 +37,7 @@ resource "kubernetes_service_account" "lb_controller" {
 
     labels = {
       "app.kubernetes.io/component" = "controller"
-      "app.kubernetes.io/name"      = "argocd-${var.argocd_name}-alb-ingress"
+      "app.kubernetes.io/name"      = var.load_balancer_name
     }
 
     annotations = {
@@ -73,9 +73,9 @@ resource "helm_release" "ingress_gateway" {
 
 # Create security group to be used later by the ingress ALB
 resource "aws_security_group" "alb" {
-    depends_on = [
-      module.vpc.public_subnets
-    ]
+  depends_on = [
+    module.vpc.public_subnets
+  ]
   name   = "${var.name_prefix}-alb"
   vpc_id = module.vpc.vpc_id
 
