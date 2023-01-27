@@ -19,7 +19,7 @@ variable "argocd_helm_chart_version" {
 variable "argocd_server_host" {
   description = "Hostname for argocd (will be utilised in ingress if enabled)"
   type        = string
-  default = "argocd.calvineotieno.com"
+  default     = "argocd.calvineotieno.com"
 }
 
 variable "argocd_ingress_class" {
