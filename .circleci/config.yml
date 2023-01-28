@@ -3,6 +3,7 @@ version: 2.1
 orbs:
   jq: circleci/jq@2.2.0
   aws-cli: circleci/aws-cli@3.1.4
+  terraform: circleci/terraform@3.1
 
 executors:
   app-executor:
@@ -14,25 +15,25 @@ executors:
     docker:
       - image: hashicorp/terraform:latest
 
-commands:
-  aws-oidc-setup:
-    description: Setup AWS auth using OIDC token
-    parameters:
-      aws-role-arn:
-        type: string
-    steps:
-      - run:
-          name: Get short-term credentials
-          command: |
-            STS=($(aws sts assume-role-with-web-identity --role-arn << parameters.aws-role-arn >> --role-session-name "CircleCI-${CIRCLE_WORKFLOW_ID}-${CIRCLE_JOB}" --web-identity-token "${CIRCLE_OIDC_TOKEN}" --duration-seconds 900 --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text))
-            echo "export AWS_ACCESS_KEY_ID=${STS[0]}" >> $BASH_ENV
-            echo "export AWS_SECRET_ACCESS_KEY=${STS[1]}" >> $BASH_ENV
-            echo "export AWS_SESSION_TOKEN=${STS[2]}" >> $BASH_ENV
-      - run:
-          name: Verify AWS credentials
-          command: aws sts get-caller-identity
+# commands:
+#   aws-oidc-setup:
+#     description: Setup AWS auth using OIDC token
+#     parameters:
+#       aws-role-arn:
+#         type: string
+#     steps:
+#       - run:
+#           name: Get short-term credentials
+#           command: |
+#             STS=($(aws sts assume-role-with-web-identity --role-arn << parameters.aws-role-arn >> --role-session-name "CircleCI-${CIRCLE_WORKFLOW_ID}-${CIRCLE_JOB}" --web-identity-token "${CIRCLE_OIDC_TOKEN}" --duration-seconds 900 --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text))
+#             echo "export AWS_ACCESS_KEY_ID=${STS[0]}" >> $BASH_ENV
+#             echo "export AWS_SECRET_ACCESS_KEY=${STS[1]}" >> $BASH_ENV
+#             echo "export AWS_SESSION_TOKEN=${STS[2]}" >> $BASH_ENV
+#       - run:
+#           name: Verify AWS credentials
+#           command: aws sts get-caller-identity
 
-aliases:
+aliases:  
   - &show-current-branch
     run:
       name: Show current branch
@@ -43,6 +44,22 @@ aliases:
       name: Install Dependencies
       command: |
         mkdir -p artifacts
+  # - &setup-aws-oidc
+  #   run:
+  #     name: Get short-term credentials
+  #     command: |
+  #       STS=($(aws sts assume-role-with-web-identity --role-arn ${AWS_ROLE_ARN} --role-session-name "CircleCI-${CIRCLE_WORKFLOW_ID}-${CIRCLE_JOB}" --web-identity-token "${CIRCLE_OIDC_TOKEN}" --duration-seconds 900 --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text))
+  #       echo "export AWS_ACCESS_KEY_ID=${STS[0]}" >> $BASH_ENV
+  #       echo "export AWS_SECRET_ACCESS_KEY=${STS[1]}" >> $BASH_ENV
+  #       echo "export AWS_SESSION_TOKEN=${STS[2]}" >> $BASH_ENV
+
+  - &setup-aws-oidc
+      name: Get short-term credentials
+      command: |
+        STS=($(aws sts assume-role-with-web-identity --role-arn ${AWS_ROLE_ARN} --role-session-name "CircleCI-${CIRCLE_BUILD_NUM}" --web-identity-token "${CIRCLE_OIDC_TOKEN}" --duration-seconds 900 --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text))
+        echo "export AWS_ACCESS_KEY_ID=${STS[0]}" >> $BASH_ENV
+        echo "export AWS_SECRET_ACCESS_KEY=${STS[1]}" >> $BASH_ENV
+        echo "export AWS_SESSION_TOKEN=${STS[2]}" >> $BASH_ENV
 
 jobs:
   testconnection:
@@ -50,8 +67,7 @@ jobs:
     steps:
       - checkout
       - aws-cli/install
-      - aws-oidc-setup:
-          aws-role-arn: ${AWS_ROLE_ARN}
+      - run: *setup-aws-oidc
       - run:
           name: Test AWS connection
           command: aws s3 ls
@@ -83,6 +99,35 @@ jobs:
              terraform validate
              terraform fmt -check
 
+  terraform-plan-and-apply-eks:
+    docker:
+      - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
+    steps:
+      - checkout
+      # - terraform/install:
+      #     arch: amd64
+      #     os: linux
+      #     terraform_version: 1.3.7
+      - attach_workspace:
+          at: ./
+      - *show-current-branch
+      -  run:
+          name: Terraform Plan [EKS]
+          command: |
+            cd artifacts/eks/
+            terraform init -input=false -backend-config=backend.tfvars
+            terraform plan -var-file=sample.tfvars -input=false
+      # -  run:
+      #     name: Terraform Apply [EKS]
+      #     command: |
+      #       cd artifacts/terraform/
+      #       terraform workspace select ${CIRCLE_BRANCH}
+      #       terraform apply --auto-approve 
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - artifacts
+
 workflows:
   aws-cli:
     jobs:
@@ -97,6 +142,15 @@ workflows:
           context: calvine-cloudonmymind
           requires:
             - setup
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+      - terraform-plan-and-apply-eks:
+          context: calvine-cloudonmymind
+          requires:
+            - testconnection
+            - terraform-validate
           # filters:
           #   branches:
           #     only:
