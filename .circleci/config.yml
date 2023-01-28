@@ -96,6 +96,35 @@ jobs:
           paths:
             - artifacts
 
+  plan-destroy:
+    docker:
+      - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
+    steps:
+      - attach_workspace:
+          at: ./
+      - run:
+          name: terraform create destroy plan
+          command: |
+            cd artifacts/eks/
+            terraform plan -destroy -out tfdestroy -var-file sample.tfvars
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - artifacts
+
+  destroy:
+    docker:
+      - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
+    steps:
+      - attach_workspace:
+          at: ./
+      - run:
+          name: terraform destroy
+          command: |
+            cd artifacts/eks/
+            terraform apply -auto-approve tfdestroy
+
+
 workflows:
   argocd-eks-setup:
     jobs:
@@ -123,3 +152,14 @@ workflows:
           #   branches:
           #     only:
           #       - main
+      - plan-destroy:
+          requires:
+            - testconnection
+            - terraform-plan-and-apply-eks
+      - hold-destroy:
+          type: approval
+          requires:
+            - plan-destroy
+      - destroy:
+          requires:
+            - hold-destroy
