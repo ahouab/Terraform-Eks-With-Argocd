@@ -1,21 +1,51 @@
 version: 2.1
 
 orbs:
-  aws-cli: circleci/aws-cli@2.0
   jq: circleci/jq@2.2.0
 
+executors:
+  app-executor:
+    docker:
+      - image: circleci/node:14.18.1
+    working_directory: ~/repo
+  
+  terraform-executor: 
+    docker:
+      - image: hashicorp/terraform:latest
+
+aliases:
+  - &show-current-branch
+    run:
+      name: Show current branch
+      command: echo ${CIRCLE_BRANCH}
+
 jobs:
-  aws-cli-cred-setup:
-    executor: aws-cli/default
+  deploy:
+    docker:
+      - image: amazon/aws-cli
+    environment:
+      AWS_DEFAULT_REGION: eu-west-1
     steps:
-      - aws-cli/setup:
-          aws-access-key-id: AWS_ACCESS_KEY
-          aws-secret-access-key: AWS_ACCESS_SECRET
-          aws-region: AWS_REGION_NAME
-      - run: >-
-          aws sts get-caller-identity | jq
+      - run:
+          name: authenticate-and-interact
+          command: |
+            # use the OpenID Connect token to obtain AWS credentials
+            read -r AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN \<<< \
+              $(aws sts assume-role-with-web-identity \
+               --role-arn ${AWS_ROLE_ARN} \
+               --role-session-name "CircleCI-${CIRCLE_WORKFLOW_ID}-${CIRCLE_JOB}" \
+               --web-identity-token $CIRCLE_OIDC_TOKEN \
+               --duration-seconds 3600 \
+               --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+               --output text)
+            export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+            # interact with AWS
+            aws --no-cli-pager sts get-caller-identity
+
+
 workflows:
   aws-cli:
     jobs:
-      - aws-cli-cred-setup:
-          context: aws
+      - deploy:
+          context: calvine-cloudonmymind
+
