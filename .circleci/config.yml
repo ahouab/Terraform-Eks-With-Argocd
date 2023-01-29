@@ -72,7 +72,7 @@ jobs:
              terraform validate
              terraform fmt -check
 
-  terraform-plan-and-apply-eks:
+  plan-apply:
     docker:
       - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
     steps:
@@ -81,11 +81,23 @@ jobs:
           at: ./
       - *show-current-branch
       -  run:
-          name: Terraform Plan [EKS]
+          name: Terraform Init and Plan [EKS]
           command: |
             cd artifacts/eks/
             terraform init -input=false -backend-config=backend.tfvars
             terraform plan -out=eks.tfplan -var-file=sample.tfvars -input=false
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - artifacts
+  apply-eks:
+    docker:
+      - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ./
+      - *show-current-branch
       -  run:
           name: Terraform Apply [EKS]
           command: |
@@ -143,7 +155,8 @@ workflows:
           #   branches:
           #     only:
           #       - main
-      - terraform-plan-and-apply-eks:
+
+      - plan-apply:
           context: calvine-cloudonmymind
           requires:
             - testconnection
@@ -152,10 +165,24 @@ workflows:
           #   branches:
           #     only:
           #       - main
+
+      - hold-apply:
+          type: approval
+          requires:
+            - plan-apply
+
+      - apply-eks:
+          context: calvine-cloudonmymind
+          requires:
+            - hold-apply
+            - testconnection
+            - terraform-validate
+
+       ##❗️ Danger Zone ##
       - plan-destroy:
           requires:
             - testconnection
-            - terraform-plan-and-apply-eks
+            - apply-eks
       - hold-destroy:
           type: approval
           requires:
