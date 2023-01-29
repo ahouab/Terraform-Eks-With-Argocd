@@ -53,7 +53,9 @@ jobs:
       - *install-dependencies
       - run:
           name: Copy Terraform folder for EKS module
-          command: cp -r eks artifacts/eks/
+          command: |
+           cp -r eks artifacts/eks/
+           cp -r argocd artifacts/argocd/
       - persist_to_workspace:
           root: ./
           paths:
@@ -65,14 +67,21 @@ jobs:
       - checkout
       - *show-current-branch
       -  run:
-          name: Code Quality
+          name: Code Quality [EKS]
           command: |
              cd eks/
              terraform init -backend=false
              terraform validate
              terraform fmt -check
+      -  run:
+          name: Code Quality [ArgoCD]
+          command: |
+             cd argocd/
+             terraform init -backend=false
+             terraform validate
+             terraform fmt -check
 
-  plan-apply:
+  plan-apply-eks:
     docker:
       - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
     steps:
@@ -108,33 +117,99 @@ jobs:
           paths:
             - artifacts
 
-  plan-destroy:
+  plan-destroy-eks:
     docker:
       - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
     steps:
       - attach_workspace:
           at: ./
       - run:
-          name: terraform create destroy plan
+          name: terraform create destroy plan[EKS]
           command: |
             cd artifacts/eks/
-            terraform plan -destroy -out tfdestroy -var-file sample.tfvars
+            terraform plan -destroy -out tfeksdestroy -var-file sample.tfvars
       - persist_to_workspace:
           root: ./
           paths:
             - artifacts
 
-  destroy:
+  destroy-eks:
     docker:
       - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
     steps:
       - attach_workspace:
           at: ./
       - run:
-          name: terraform destroy
+          name: terraform destroy[EKS]
           command: |
             cd artifacts/eks/
-            terraform apply -auto-approve tfdestroy
+            terraform apply -auto-approve tfeksdestroy
+
+  ## ArgoCD ##
+  plan-apply-argocd:
+    docker:
+      - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ./
+      - *show-current-branch
+      -  run:
+          name: Terraform Init and Plan [ArgoCD]
+          command: |
+            cd artifacts/argocd/
+            terraform init -input=false -backend-config=backend.tfvars
+            terraform plan -out=argocd.tfplan -input=false
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - artifacts
+  apply-argocd:
+    docker:
+      - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
+    steps:
+      - checkout
+      - aws-cli/install
+      - attach_workspace:
+          at: ./
+      - *show-current-branch
+      -  run:
+          name: Terraform Apply [ArgoCD]
+          command: |
+            cd artifacts/argocd/
+            terraform apply -input=false argocd.tfplan
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - artifacts
+
+  plan-destroy-argocd:
+    docker:
+      - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
+    steps:
+      - attach_workspace:
+          at: ./
+      - run:
+          name: terraform create destroy plan[ArgoCD]
+          command: |
+            cd artifacts/argocd/
+            terraform plan -destroy -out tfargocddestroy
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - artifacts
+
+  destroy-argocd:
+    docker:
+      - image: docker.mirror.hashicorp.services/hashicorp/terraform:light
+    steps:
+      - attach_workspace:
+          at: ./
+      - run:
+          name: terraform destroy[ArgoCD]
+          command: |
+            cd artifacts/argocd/
+            terraform apply -auto-approve tfargocddestroy
 
 
 workflows:
@@ -156,7 +231,7 @@ workflows:
           #     only:
           #       - main
 
-      - plan-apply:
+      - plan-apply-eks:
           context: calvine-cloudonmymind
           requires:
             - testconnection
@@ -166,27 +241,63 @@ workflows:
           #     only:
           #       - main
 
-      - hold-apply:
+      - hold-apply-eks:
           type: approval
           requires:
-            - plan-apply
+            - plan-apply-eks
 
       - apply-eks:
           context: calvine-cloudonmymind
           requires:
-            - hold-apply
+            - hold-apply-eks
             - testconnection
             - terraform-validate
 
-       ##❗️ Danger Zone ##
-      - plan-destroy:
+      - plan-apply-argocd:
+          context: calvine-cloudonmymind
+          requires:
+            - testconnection
+            - terraform-validate
+            - apply-eks
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+
+      - hold-apply-argocd:
+          type: approval
+          requires:
+            - plan-apply-argocd
+
+      - apply-argocd:
+          context: calvine-cloudonmymind
+          requires:
+            - hold-apply-argocd
+            - testconnection
+            - terraform-validate
+
+       ##❗️ Danger Zone EKS##
+      - plan-destroy-eks:
           requires:
             - testconnection
             - apply-eks
-      - hold-destroy:
+      - hold-destroy-eks:
           type: approval
           requires:
-            - plan-destroy
-      - destroy:
+            - plan-destroy-eks
+      - destroy-eks:
           requires:
-            - hold-destroy
+            - hold-destroy-eks
+
+       ##❗️ Danger Zone ArgoCD##
+      - plan-destroy-argocd:
+          requires:
+            - testconnection
+            - apply-argocd
+      - hold-destroy-argocd:
+          type: approval
+          requires:
+            - plan-destroy-argocd
+      - destroy-argocd:
+          requires:
+            - hold-destroy-argocd

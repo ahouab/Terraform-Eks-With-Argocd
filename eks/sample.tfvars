@@ -5,9 +5,9 @@ main_network_block = "10.0.0.0/16"
 eks_managed_node_groups = {
   "devops-eks-ondemand" = {
     ami_type     = "AL2_x86_64"
-    min_size     = 1
+    min_size     = 2
     max_size     = 4
-    desired_size = 1
+    desired_size = 2
     instance_types = [
       "t3.medium",
     ]
