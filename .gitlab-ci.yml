@@ -65,6 +65,11 @@ image:
   when: manual
   <<: *terraform_init_argocd_template
   script:
+    - apt-get -y update
+    - apt-get install zip unzip
+    - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    - unzip awscliv2.zip
+    - ./aws/install
     - aws s3 ls
     - terraform apply -input=false $CI_PROJECT_DIR/argocd.tfplan
 
