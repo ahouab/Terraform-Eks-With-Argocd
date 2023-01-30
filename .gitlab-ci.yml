@@ -12,21 +12,21 @@ image:
   entrypoint:
     - env
 
-.terraform_init_template: &terraform_init_template
+.eks_terraform_init_template: &eks_terraform_init_template
   before_script:
     - cd eks
     - terraform init -input=false -backend-config=backend.tfvars
 
-.terraform_init_argocd_template: &terraform_init_argocd_template
+.argocd_terraform_init_template: &argocd_terraform_init_template
   before_script:
     - apk add --no-cache curl jq python3 py-pip git
     - pip install awscli
     - cd argocd
     - terraform init -input=false -backend-config=backend.tfvars
 
-.plan_template: &plan_template
+.eks_plan_template: &eks_plan_template
   stage: plan
-  <<: *terraform_init_template
+  <<: *eks_terraform_init_template
   script:
     - terraform plan -out=$CI_PROJECT_DIR/eks.tfplan
       -var-file=sample.tfvars
@@ -35,26 +35,26 @@ image:
     paths:
       - eks.tfplan
 
-.apply_template: &apply_template
+.eks_apply_template: &eks_apply_template
   stage: apply
   when: manual
-  <<: *terraform_init_template
+  <<: *eks_terraform_init_template
   script:
     - terraform apply -input=false $CI_PROJECT_DIR/eks.tfplan
 
-.destroy_template: &destroy_template
+.eks_destroy_template: &eks_destroy_template
   stage: destroy
   when: manual
-  <<: *terraform_init_template
+  <<: *eks_terraform_init_template
   script:
     - terraform destroy
       -var-file=sample.tfvars
       -auto-approve
 
-.plan_argocd_template: &plan_argocd_template
+.argocd_plan_template: &argocd_plan_template
   when: manual
   stage: plan
-  <<: *terraform_init_argocd_template
+  <<: *argocd_terraform_init_template
   script:
     - terraform plan -out=$CI_PROJECT_DIR/argocd.tfplan
       -input=false
@@ -62,23 +62,26 @@ image:
     paths:
       - argocd.tfplan
 
-.apply_argocd_template: &apply_argocd_template
+.argocd_apply_template: &argocd_apply_template
   stage: apply
   when: manual
-  <<: *terraform_init_argocd_template
+  <<: *argocd_terraform_init_template
   script:
     - aws s3 ls
     - terraform apply -input=false $CI_PROJECT_DIR/argocd.tfplan
 
-.destroy_argocd_template: &destroy_argocd_template
+.argocd_destroy_template: &argocd_destroy_template
   stage: destroy
   when: manual
-  <<: *terraform_init_argocd_template
+  <<: *argocd_terraform_init_template
   script:
     - terraform destroy
       -auto-approve
 
-pre_setup_development:
+##############################################################################
+##                          Pipeline Pre Setup                             ##
+##############################################################################
+pre_setup:
   stage: pre-setup
   image:
     name: amazon/aws-cli:2.0.7
@@ -91,6 +94,10 @@ pre_setup_development:
       (aws s3 mb s3://${BUCKET_NAME} --region ${AWS_DEFAULT_REGION}
         && aws s3api put-bucket-versioning --bucket ${BUCKET_NAME}
         --versioning-configuration Status=Enabled)
+
+##############################################################################
+##                         General Jobs for Code Quality                   ##
+##############################################################################
 
 terraform_lint:
   stage: code-quality
@@ -124,44 +131,40 @@ yaml_lint:
   script:
     - yamllint .
 
-validate_development:
+##############################################################################
+##                             EKS Jobs                                    ##
+##############################################################################
+
+eks_validate:
   stage: validate
-  <<: *terraform_init_template
+  <<: *eks_terraform_init_template
   script:
     - terraform validate
 
-plan_development:
-  environment:
-    name: development
-  <<: *plan_template
+eks_plan:
+  <<: *eks_plan_template
 
-apply_development:
-  environment:
-    name: development
-  <<: *apply_template
+eks_apply:
+  <<: *eks_apply_template
 
-destroy_development:
-  environment:
-    name: development
-  <<: *destroy_template
+eks_destroy:
+  <<: *eks_destroy_template
 
-validate_argocd_development:
+##############################################################################
+##                             ArgoCD Jobs                                 ##
+##############################################################################
+
+argocd_validate:
   stage: validate
-  <<: *terraform_init_argocd_template
+  <<: *argocd_terraform_init_template
   script:
     - terraform validate
 
-plan_argocd_development:
-  environment:
-    name: development
-  <<: *plan_argocd_template
+plan_argocd:
+  <<: *argocd_plan_template
 
-apply_argocd_development:
-  environment:
-    name: development
-  <<: *apply_argocd_template
+apply_argocd:
+  <<: *argocd_apply_template
 
-destroy_argocd_development:
-  environment:
-    name: development
-  <<: *destroy_argocd_template
+destroy_argocd:
+  <<: *argocd_destroy_template
