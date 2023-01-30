@@ -17,16 +17,21 @@ image:
     - cd eks
     - terraform init -input=false -backend-config=backend.tfvars
 
+.terraform_init_argocd_template: &terraform_init_argocd_template
+  before_script:
+    - cd argocd
+    - terraform init -input=false -backend-config=backend.tfvars
+
 .plan_template: &plan_template
   stage: plan
   <<: *terraform_init_template
   script:
-    - terraform plan -out=eks.tfplan
+    - terraform plan -out=$CI_PROJECT_DIR/eks.tfplan
       -var-file=sample.tfvars
       -input=false
   artifacts:
     paths:
-      - $CI_PROJECT_DIR
+      - eks.tfplan
 
 .apply_template: &apply_template
   stage: apply
@@ -35,10 +40,28 @@ image:
   script:
     - terraform apply -input=false eks.tfplan
 
-.destroy_template: &destroy_template
+.plan_argocd_template: &plan_argocd_template
+  when: manual
+  stage: plan
+  <<: *terraform_init_argocd_template
+  script:
+    - terraform plan -out=$CI_PROJECT_DIR/argocd.tfplan
+      -input=false
+  artifacts:
+    paths:
+      - argocd.tfplan
+
+.apply_argocd_template: &apply_argocd_template
+  stage: apply
+  when: manual
+  <<: *terraform_init_argocd_template
+  script:
+    - terraform apply -input=false argocd.tfplan
+
+.destroy_argocd_template: &destroy_argocd_template
   stage: destroy
   when: manual
-  <<: *terraform_init_template
+  <<: *terraform_init_argocd_template
   script:
     - terraform destroy
       -var-file=sample.tfvars
@@ -74,6 +97,9 @@ terraform_fmt:
   tags:
     - linux
   script:
+    - cd eks
+    - terraform fmt -check
+    - cd argocd
     - terraform fmt -check
 
 yaml_lint:
@@ -107,3 +133,24 @@ destroy_development:
   environment:
     name: development
   <<: *destroy_template
+
+validate_argocd_development:
+  stage: validate
+  <<: *terraform_init_argocd_template
+  script:
+    - terraform validate
+
+plan_argocd_development:
+  environment:
+    name: development
+  <<: *plan_argocd_template
+
+apply_argocd_development:
+  environment:
+    name: development
+  <<: *apply_argocd_template
+
+destroy_argocd_development:
+  environment:
+    name: development
+  <<: *destroy_argocd_template
