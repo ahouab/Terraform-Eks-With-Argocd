@@ -38,7 +38,16 @@ image:
   when: manual
   <<: *terraform_init_template
   script:
-    - terraform apply -input=false eks.tfplan
+    - terraform apply -input=false $CI_PROJECT_DIR/eks.tfplan
+
+.destroy_template: &destroy_template
+  stage: destroy
+  when: manual
+  <<: *terraform_init_template
+  script:
+    - terraform destroy
+      -var-file=sample.tfvars
+      -auto-approve
 
 .plan_argocd_template: &plan_argocd_template
   when: manual
@@ -56,7 +65,7 @@ image:
   when: manual
   <<: *terraform_init_argocd_template
   script:
-    - terraform apply -input=false argocd.tfplan
+    - terraform apply -input=false $CI_PROJECT_DIR/argocd.tfplan
 
 .destroy_argocd_template: &destroy_argocd_template
   stage: destroy
@@ -64,7 +73,6 @@ image:
   <<: *terraform_init_argocd_template
   script:
     - terraform destroy
-      -var-file=sample.tfvars
       -auto-approve
 
 pre_setup_development:
@@ -99,7 +107,7 @@ terraform_fmt:
   script:
     - cd eks
     - terraform fmt -check
-    - cd argocd
+    - cd ../argocd
     - terraform fmt -check
 
 yaml_lint:
