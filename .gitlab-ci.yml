@@ -44,7 +44,9 @@ image:
 
 .eks_destroy_template: &eks_destroy_template
   stage: destroy
-  when: manual
+  only:
+    variables:
+      - $PHASE == "DESTROY"
   <<: *eks_terraform_init_template
   script:
     - terraform destroy
@@ -72,7 +74,9 @@ image:
 
 .argocd_destroy_template: &argocd_destroy_template
   stage: destroy
-  when: manual
+  only:
+    variables:
+      - $PHASE == "DESTROY"
   <<: *argocd_terraform_init_template
   script:
     - terraform destroy
