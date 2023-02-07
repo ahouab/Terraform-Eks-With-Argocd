@@ -37,19 +37,15 @@ variables:
     # yamllint enable
     - aws sts get-caller-identity
 
-.eks_terraform_init_template: &eks_terraform_init_template |-
-    cd eks
-    terraform init -input=false -backend-config=backend.tfvars
-
-.argocd_terraform_init_template: &argocd_terraform_init_template |-
-    cd argocd
+.terraform_init_template: &terraform_init_template |-
     terraform init -input=false -backend-config=backend.tfvars
 
 .eks_plan_template: &eks_plan_template
   stage: plan
   <<: *assume_role
   script:
-    - *eks_terraform_init_template
+    - cd eks
+    - *terraform_init_template
     - terraform plan -out=$CI_PROJECT_DIR/eks.tfplan
       -var-file=sample.tfvars
       -input=false
@@ -62,17 +58,19 @@ variables:
   when: manual
   <<: *assume_role
   script:
-    - *eks_terraform_init_template
+    - cd eks
+    - *terraform_init_template
     - terraform apply -input=false $CI_PROJECT_DIR/eks.tfplan
 
 .eks_destroy_template: &eks_destroy_template
   stage: destroy
   only:
     variables:
-      - $PHASE == "DESTROY"
+      - $PHASE == "EKS_DESTROY"
   <<: *assume_role
   script:
-    - *eks_terraform_init_template
+    - cd eks
+    - *terraform_init_template
     - terraform destroy
       -var-file=sample.tfvars
       -auto-approve
@@ -82,7 +80,8 @@ variables:
   stage: plan
   <<: *assume_role
   script:
-    - *argocd_terraform_init_template
+    - cd argocd
+    - *terraform_init_template
     - terraform plan -out=$CI_PROJECT_DIR/argocd.tfplan
       -input=false
   artifacts:
@@ -94,7 +93,8 @@ variables:
   when: manual
   <<: *assume_role
   script:
-    - *argocd_terraform_init_template
+    - cd argocd
+    - *terraform_init_template
     - aws s3 ls
     - terraform apply -input=false $CI_PROJECT_DIR/argocd.tfplan
 
@@ -102,10 +102,11 @@ variables:
   stage: destroy
   only:
     variables:
-      - $PHASE == "DESTROY"
+      - $PHASE == "ARGOCD_DESTROY"
   <<: *assume_role
   script:
-    - *argocd_terraform_init_template
+    - cd argocd
+    - *terraform_init_template
     - terraform destroy
       -auto-approve
 
@@ -167,7 +168,8 @@ eks_validate:
   stage: validate
   <<: *assume_role
   script:
-    - *eks_terraform_init_template
+    - cd eks
+    - *terraform_init_template
     - terraform validate
 
 eks_plan:
@@ -175,9 +177,13 @@ eks_plan:
 
 eks_apply:
   <<: *eks_apply_template
+  only:
+    - main
 
 eks_destroy:
   <<: *eks_destroy_template
+  only:
+    - main
 
 ##############################################################################
 ##                             ArgoCD Jobs                                 ##
@@ -187,7 +193,8 @@ argocd_validate:
   stage: validate
   <<: *assume_role
   script:
-    - *argocd_terraform_init_template
+    - cd argocd
+    - *terraform_init_template
     - terraform validate
 
 plan_argocd:
@@ -195,6 +202,10 @@ plan_argocd:
 
 apply_argocd:
   <<: *argocd_apply_template
+  only:
+    - main
 
 destroy_argocd:
   <<: *argocd_destroy_template
+  only:
+    - main
