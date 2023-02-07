@@ -12,22 +12,44 @@ image:
   entrypoint:
     - env
 
-.eks_terraform_init_template: &eks_terraform_init_template
-  before_script:
-    - cd eks
-    - terraform init -input=false -backend-config=backend.tfvars
+variables:
+  AWS_ROLE_ARN: arn:aws:iam::167259143853:role/gitlab-ci
+  AWS_WEB_IDENTITY_TOKEN_FILE: /tmp/web-identity-token
 
-.argocd_terraform_init_template: &argocd_terraform_init_template
+##############################################################################
+##                Setup OIDC Assume Role Template                          ##
+##############################################################################
+.assume_role: &assume_role
   before_script:
-    - apk add --no-cache curl jq python3 py-pip git
-    - pip install awscli
-    - cd argocd
-    - terraform init -input=false -backend-config=backend.tfvars
+    - apk add python3
+    - apk add --update py3-pip
+    - pip3 install awscli
+    # yamllint disable rule:line-length
+    - >
+      export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s"
+      $(aws sts assume-role-with-web-identity
+      --role-arn $AWS_ROLE_ARN
+      --role-session-name "GitLabRunner-${CI_PROJECT_ID}-${CI_PIPELINE_ID}"
+      --web-identity-token $CI_JOB_JWT_V2
+      --duration-seconds 3600
+      --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]'
+      --output text))
+    # yamllint enable
+    - aws sts get-caller-identity
+
+.eks_terraform_init_template: &eks_terraform_init_template |-
+    cd eks
+    terraform init -input=false -backend-config=backend.tfvars
+
+.argocd_terraform_init_template: &argocd_terraform_init_template |-
+    cd argocd
+    terraform init -input=false -backend-config=backend.tfvars
 
 .eks_plan_template: &eks_plan_template
   stage: plan
-  <<: *eks_terraform_init_template
+  <<: *assume_role
   script:
+    - *eks_terraform_init_template
     - terraform plan -out=$CI_PROJECT_DIR/eks.tfplan
       -var-file=sample.tfvars
       -input=false
@@ -38,8 +60,9 @@ image:
 .eks_apply_template: &eks_apply_template
   stage: apply
   when: manual
-  <<: *eks_terraform_init_template
+  <<: *assume_role
   script:
+    - *eks_terraform_init_template
     - terraform apply -input=false $CI_PROJECT_DIR/eks.tfplan
 
 .eks_destroy_template: &eks_destroy_template
@@ -47,8 +70,9 @@ image:
   only:
     variables:
       - $PHASE == "DESTROY"
-  <<: *eks_terraform_init_template
+  <<: *assume_role
   script:
+    - *eks_terraform_init_template
     - terraform destroy
       -var-file=sample.tfvars
       -auto-approve
@@ -56,8 +80,9 @@ image:
 .argocd_plan_template: &argocd_plan_template
   when: manual
   stage: plan
-  <<: *argocd_terraform_init_template
+  <<: *assume_role
   script:
+    - *argocd_terraform_init_template
     - terraform plan -out=$CI_PROJECT_DIR/argocd.tfplan
       -input=false
   artifacts:
@@ -67,8 +92,9 @@ image:
 .argocd_apply_template: &argocd_apply_template
   stage: apply
   when: manual
-  <<: *argocd_terraform_init_template
+  <<: *assume_role
   script:
+    - *argocd_terraform_init_template
     - aws s3 ls
     - terraform apply -input=false $CI_PROJECT_DIR/argocd.tfplan
 
@@ -77,8 +103,9 @@ image:
   only:
     variables:
       - $PHASE == "DESTROY"
-  <<: *argocd_terraform_init_template
+  <<: *assume_role
   script:
+    - *argocd_terraform_init_template
     - terraform destroy
       -auto-approve
 
@@ -87,12 +114,9 @@ image:
 ##############################################################################
 pre_setup:
   stage: pre-setup
-  image:
-    name: amazon/aws-cli:2.0.7
-    entrypoint:
-      - env
   variables:
     BUCKET_NAME: devops-demo.tfstate
+  <<: *assume_role
   script:
     - aws s3 ls s3://${BUCKET_NAME} ||
       (aws s3 mb s3://${BUCKET_NAME} --region ${AWS_DEFAULT_REGION}
@@ -141,8 +165,9 @@ yaml_lint:
 
 eks_validate:
   stage: validate
-  <<: *eks_terraform_init_template
+  <<: *assume_role
   script:
+    - *eks_terraform_init_template
     - terraform validate
 
 eks_plan:
@@ -160,8 +185,9 @@ eks_destroy:
 
 argocd_validate:
   stage: validate
-  <<: *argocd_terraform_init_template
+  <<: *assume_role
   script:
+    - *argocd_terraform_init_template
     - terraform validate
 
 plan_argocd:
