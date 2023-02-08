@@ -13,7 +13,6 @@ image:
     - env
 
 variables:
-  AWS_ROLE_ARN: arn:aws:iam::167259143853:role/gitlab-ci
   AWS_WEB_IDENTITY_TOKEN_FILE: /tmp/web-identity-token
 
 ##############################################################################
@@ -182,8 +181,6 @@ eks_apply:
 
 eks_destroy:
   <<: *eks_destroy_template
-  only:
-    - main
 
 ##############################################################################
 ##                             ArgoCD Jobs                                 ##
@@ -207,5 +204,3 @@ apply_argocd:
 
 destroy_argocd:
   <<: *argocd_destroy_template
-  only:
-    - main
